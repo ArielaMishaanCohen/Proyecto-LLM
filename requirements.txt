@@ -1,0 +1,8 @@
+streamlit==1.39.0
+python-dotenv==1.0.1
+openai==1.51.2
+pandas==2.2.2
+plotly==5.24.1
+sqlalchemy==2.0.35
+httpx==0.27.2
+httpcore==1.0.5
