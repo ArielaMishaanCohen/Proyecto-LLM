@@ -1,3 +1,4 @@
+# LIBRERIAS
 import os
 import json
 import uuid
@@ -10,10 +11,10 @@ import plotly.express as px
 import streamlit as st
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
+from openai import OpenAI
 
 # CARGA DE ENTORNO Y CLIENTE
 load_dotenv()
-from openai import OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
@@ -128,7 +129,16 @@ def plan_prompt(goal: str, hours_per_day: int, style: str) -> List[Dict[str, str
 
 # PROMPTS DE FEEDBACK Y ADAPTACIÓN
 def feedback_prompt(entries: List[Dict[str, Any]], plan_title: str) -> List[Dict[str, str]]:
-    
+    # Normaliza a lista de dicts serializables
+    try:
+        serializable_entries = [
+            e if isinstance(e, dict) else dict(e)
+            for e in entries
+        ]
+    except Exception:
+        # Fallback muy defensivo
+        serializable_entries = [json.loads(json.dumps(e, default=str)) for e in entries]
+
     system = (
         "Eres MentorIA, das feedback breve, empático y accionable. "
         "Devuelve ESTRICTAMENTE JSON con este esquema:\n"
@@ -139,13 +149,16 @@ def feedback_prompt(entries: List[Dict[str, Any]], plan_title: str) -> List[Dict
         "  \"next_week_focus\": [str,...]"
         "}"
     )
-    user = "Resumen de check-ins y reflexiones (últimos 7 días):\n" + json.dumps(entries, ensure_ascii=False)
+
+    user = "Resumen de check-ins y reflexiones (últimos 7 días):\n" + json.dumps(serializable_entries, ensure_ascii=False)
     assistant = f"El plan actual es: {plan_title}."
+
     return [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
         {"role": "assistant", "content": assistant}
     ]
+
 
 def next_week_prompt(goal: str, last_feedback_json: Dict[str, Any]) -> List[Dict[str, str]]:
     system = (
@@ -170,7 +183,6 @@ def safe_json_loads(s: str) -> Dict[str, Any]:
     try:
         return json.loads(s)
     except Exception:
-        # fallback: intentar corregir JSON menor
         try:
             s2 = s.strip().strip("```json").strip("```").strip()
             return json.loads(s2)
@@ -187,7 +199,7 @@ with st.sidebar:
     if st.button("Guardar nombre"):
         with engine.begin() as conn:
             conn.execute(text("UPDATE users SET name=:n WHERE user_id=:u"),
-                         {"n": username, "u": st.session_state.user_id})
+                        {"n": username, "u": st.session_state.user_id})
         st.success("Nombre guardado.")
 
 # PESTAÑA 1: PLAN SEMANAL
